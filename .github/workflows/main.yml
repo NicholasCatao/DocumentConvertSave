@@ -23,7 +23,7 @@ jobs:
       working-directory: ./cmd/api
 
     - name: Build the Go binary
-      run: GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+      run: GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o bootstrap main.go
       working-directory: ./cmd/api
 
     - name: Zip the binary
