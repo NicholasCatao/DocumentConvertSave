@@ -38,5 +38,5 @@ jobs:
         aws-region: us-east-1
 
     - name: Deploy to AWS Lambda
-      run: aws lambda update-function-code --function-name go-lambda-cicd --zip-file fileb://function.zip
+      run: aws lambda update-function-code --function-name golambgo --zip-file fileb://function.zip
       working-directory: ./cmd/api
