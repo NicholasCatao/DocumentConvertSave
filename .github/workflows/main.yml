@@ -19,15 +19,16 @@ jobs:
         go-version: '1.23'
 
     - name: Install dependencies
-      run: 
-        cd cmd/api
-        go mod tidy
+      run: go mod tidy
+      working-directory: ./cmd/api
 
     - name: Build the Go binary
       run: GOOS=linux GOARCH=amd64 go build -o bootstrap main.go
+      working-directory: ./cmd/api
 
     - name: Zip the binary
       run: zip function.zip bootstrap
+      working-directory: ./cmd/api
 
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v1
@@ -37,5 +38,5 @@ jobs:
         aws-region: us-east-1
 
     - name: Deploy to AWS Lambda
-      run: |
-        aws lambda update-function-code --function-name go-lambda-cicd --zip-file fileb://function.zip
+      run: aws lambda update-function-code --function-name go-lambda-cicd --zip-file fileb://function.zip
+      working-directory: ./cmd/api
