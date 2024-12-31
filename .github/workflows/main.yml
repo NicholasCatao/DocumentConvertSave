@@ -40,3 +40,4 @@ jobs:
     - name: Deploy to AWS Lambda
       run: aws lambda update-function-code --function-name golambgo --zip-file fileb://function.zip
       working-directory: ./cmd/api
+
