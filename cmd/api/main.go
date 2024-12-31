@@ -1,21 +1,31 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
-	"fmt"
+	"image"
+	"image/jpeg"
 	"log"
-	"strings"
+	"net/http"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-type Order struct {
-	OrderID string  `json:"order_id"`
-	Amount  float64 `json:"amount"`
-	Item    string  `json:"item"`
+const defaultImageFormat = "jpeg"
+const defaultDirName = "Documents/"
+
+type Document struct {
+	ID string  `json:"id"`
+	Image string `json:"image"`
+}
+
+type Result struct {
+	Status int `json:"status"`
+	Description string `json:"description"`
 }
 
 var (
@@ -32,12 +42,13 @@ func init() {
 	s3Client = s3.NewFromConfig(cfg)
 }
 
-func uploadReceiptToS3(ctx context.Context, bucketName, key, receiptContent string) error {
+func uploadReceiptToS3(ctx context.Context, bucketName string, key string, receiptContent []byte) error {
 	_, err := s3Client.PutObject(ctx, &s3.PutObjectInput{
 		Bucket: &bucketName,
 		Key:    &key,
-		Body:   strings.NewReader(receiptContent),
+		Body:   bytes.NewReader(receiptContent),
 	})
+
 	if err != nil {
 		log.Printf("Failed to upload receipt to S3: %v", err)
 		return err
@@ -45,29 +56,56 @@ func uploadReceiptToS3(ctx context.Context, bucketName, key, receiptContent stri
 	return nil
 }
 
-func handleRequest(ctx context.Context, event json.RawMessage) error {
+func handleRequest(ctx context.Context, event json.RawMessage) Result {
 	// Parse the input event
-	var order Order
-	if err := json.Unmarshal(event, &order); err != nil {
+	var document Document
+	if err := json.Unmarshal(event, &document); err != nil {
 		log.Printf("Failed to unmarshal event: %v", err)
-		return err
+
+		return Result{Status: http.StatusBadRequest, Description: "Failed to unmarshal event"}
 	}
 
-	// Access environment variables
+	jgpImage, err := ConvertToJpeg(document.Image)
+
+	if err != nil { log.Fatalf("Failed to decode base64 string: %v", err) }
+
 	bucketName := "mylambucketgo" 
-	// Create the receipt content and key destination
-	receiptContent := fmt.Sprintf("OrderID: %s\nAmount: $%.2f\nItem: %s",
-		order.OrderID, order.Amount, order.Item)
-	key := "receipts/" + order.OrderID + ".txt"
+	receiptContent :=  jgpImage
+	key := defaultDirName + document.ID + defaultImageFormat
 
 	// Upload the receipt to S3 using the helper method
 	if err := uploadReceiptToS3(ctx, bucketName, key, receiptContent); err != nil {
-		return err
+		return Result{Status: http.StatusInternalServerError, Description: "Failed to upload receipt to S3"}
 	}
 
-	log.Printf("Successfully processed order %s and stored receipt in S3 bucket %s", order.OrderID, bucketName)
-	return nil
+	log.Printf("Successfully processed order %s and stored receipt in S3 bucket %s", document.ID, bucketName)
+
+	return Result{Status: http.StatusCreated, Description: "Successfully processed order and stored receipt in S3 bucket"}
 }
+
+func ConvertToJpeg(imageString string) ([]byte, error) {
+
+	imageData, err := base64.StdEncoding.DecodeString(imageString) 
+
+	if err != nil { log.Fatalf("Failed to decode string to byte image: %v", err) }
+
+	image, _, err := image.Decode(bytes.NewReader(imageData)) 
+
+	if err != nil { log.Fatalf("Failed to decode image: %v", err) }
+
+	var jpegBuffer bytes.Buffer
+	 
+	err = jpeg.Encode(&jpegBuffer, image, nil)
+
+	if err != nil { log.Fatalf("Failed to encode image to JPEG: %v", err) }
+
+	if err != nil {return nil, err}
+	
+	log.Printf("Successfully processed image to JPEG")
+
+	return jpegBuffer.Bytes(), nil
+}
+
 
 func main() {
 	lambda.Start(handleRequest)
