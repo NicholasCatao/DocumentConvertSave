@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 )
 
-const defaultImageFormat = "jpeg"
+const defaultImageFormat = ".jpeg"
 const defaultDirName = "Documents/"
 
 type Document struct {
